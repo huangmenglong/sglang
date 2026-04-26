@@ -2,6 +2,7 @@ import unittest
 
 import torch
 
+from sglang.srt.layers.quantization import fp8_utils
 from sglang.srt.layers.quantization.fp8_utils import (
     inverse_transform_scale_ue8m0,
     quant_weight_ue8m0,
@@ -41,6 +42,32 @@ class TestInverseTransformScaleUe8m0(CustomTestCase):
             assert torch.all(
                 sf_fp32_original == sf_fp32_recreated
             ), f"{sf_fp32_original=} {sf_fp32_recreated}"
+
+
+class TestFp8ScaledMmAbstract(CustomTestCase):
+    def test_accepts_out_argument(self):
+        if not hasattr(fp8_utils, "_fp8_scaled_mm_abstract"):
+            self.skipTest("CUDA fp8_scaled_mm fake implementation is not registered")
+
+        mat_a = torch.empty((3, 4), device="meta", dtype=torch.float8_e4m3fn)
+        mat_b = torch.empty((4, 5), device="meta", dtype=torch.float8_e4m3fn)
+        scales_a = torch.empty((3, 1), device="meta", dtype=torch.float32)
+        scales_b = torch.empty((1, 5), device="meta", dtype=torch.float32)
+        out = torch.empty((3, 5), device="meta", dtype=torch.bfloat16)
+
+        result = fp8_utils._fp8_scaled_mm_abstract(
+            mat_a,
+            mat_b,
+            scales_a,
+            scales_b,
+            torch.bfloat16,
+            None,
+            out,
+        )
+
+        self.assertIs(result, out)
+        self.assertEqual(result.shape, (3, 5))
+        self.assertEqual(result.dtype, torch.bfloat16)
 
 
 if __name__ == "__main__":
